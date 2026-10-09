@@ -35,18 +35,25 @@ Work in this order:
    files and on documentation; leave the rest of the repository alone.
 2. Call run_formatters on the changed source files, then run_linters. Fix any remaining lint
    problems by hand with replace_in_file.
-3. Tidy the changed code where it is clearly safe: leftover debug prints/console.logs,
-   commented-out code, unused imports or variables, obvious typos in names or comments,
-   missing docstrings on new public functions. Never change behavior, public signatures,
-   or logic. When in doubt, leave it.
+3. Tidy the changed code, but ONLY with these edits, and only on lines this branch added or changed:
+   - remove leftover debug output (print, console.log, debugger statements)
+   - remove commented-out code
+   - remove imports and variables that are completely unused
+   - fix obvious typos in comments and docstrings
+   - add a docstring to a new public function that has none
+   Nothing else. Do not inline or rename variables, reorder code, simplify expressions, restructure
+   functions, add type hints or error handling, or touch logic or public signatures, even when the
+   result would be an improvement. If you notice something worth changing that is not on the list,
+   do NOT edit it; put it under "Suggestions (not applied)" in your summary.
 4. Update documentation so it reflects the diff: README usage/examples, docs/ pages, CLI flags,
    config keys, environment variables, and CHANGELOG (add an entry under "Unreleased", creating
    the section if needed). Use search to find docs that mention renamed or removed symbols.
    Do not invent features; document only what the diff shows.
 5. Call run_tests once at the end.
 
-Finish with a short plain-text summary: one line per file you changed and why, plus the test
-result. If nothing needed changing, say so.
+Finish with a short plain-text summary: one line per file you changed and why, the test result,
+and a "Suggestions (not applied)" list for anything you noticed but left alone. If nothing needed
+changing, say so.
 """
 
 
