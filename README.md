@@ -52,19 +52,23 @@ The working tree must be clean before you run it, so the agent's changes never m
 | Env var | Meaning |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API key |
-| `CLEANPUSH_MODEL` | model to use (default `claude-opus-5-5`) |
+| `CLEANPUSH_MODEL` | model to use (default `claude-sonnet-5-5`) |
 | `CLEANPUSH_TEST_CMD` | test command (default: auto-detects `pytest` or `npm test`) |
 | `CLEANPUSH_SKIP=1` | skip the pre-push hook once |
 
 ## Enforce it on main
 
-**Locally (pre-push hook).** When you push to `main`, the agent runs first. If it makes a cleanup commit, the push stops so you can review the commit and push again.
+The main enforcement point is the **pull request**: the agent runs once the code is ready for review, so the docs match the final diff.
+
+**Locally, two optional hooks.**
+- `hooks/pre-commit` formats staged Python files with ruff on every commit. It is instant and free, with no AI.
+- `hooks/pre-push` runs the full agent when you push to `main`. If it makes a cleanup commit, the push stops so you can review it and push again.
 
 ```bash
 git config core.hooksPath /path/to/cleanpush/hooks
 ```
 
-**In CI (recommended).** [.github/workflows/cleanpush.yml](.github/workflows/cleanpush.yml) runs on every PR into `main` and pushes the cleanup commit back to the PR branch. Add `ANTHROPIC_API_KEY` as a repo secret, then turn on branch protection for `main` (require pull requests). After that, nothing reaches `main` without passing through cleanpush.
+**In CI (recommended, runs on pull requests).** [.github/workflows/cleanpush.yml](.github/workflows/cleanpush.yml) runs on every PR into `main` and pushes the cleanup commit back to the PR branch. Add `ANTHROPIC_API_KEY` as a repo secret, then turn on branch protection for `main` (require pull requests). After that, nothing reaches `main` without passing through cleanpush.
 
 ## Use the MCP server on its own
 

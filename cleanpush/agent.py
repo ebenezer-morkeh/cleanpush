@@ -24,7 +24,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 from cleanpush import repo_tools
 
-MODEL = os.environ.get("CLEANPUSH_MODEL", "claude-opus-5-5")
+MODEL = os.environ.get("CLEANPUSH_MODEL", "claude-sonnet-5-5")
 
 SYSTEM_PROMPT = """\
 You are cleanpush, a pre-merge agent. Code on this branch is about to land on the main branch.

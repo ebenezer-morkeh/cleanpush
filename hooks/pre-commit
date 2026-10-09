@@ -1,0 +1,13 @@
+#!/bin/sh
+# cleanpush pre-commit hook: instant, free formatting on every commit (no AI involved).
+# Formats staged Python files with ruff and re-stages them. The AI agent runs later, on pull requests.
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.pyi?$')
+[ -z "$files" ] && exit 0
+if ! command -v ruff >/dev/null 2>&1; then
+  echo "cleanpush: ruff not found, skipping format (pip install ruff)"
+  exit 0
+fi
+echo "$files" | xargs ruff check --fix --quiet
+echo "$files" | xargs ruff format --quiet
+echo "$files" | xargs git add
+exit 0
