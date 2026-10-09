@@ -68,8 +68,10 @@ def log_path(repo: Path) -> Path:
     return Path(git("rev-parse", "--absolute-git-dir", cwd=repo).strip()) / "cleanpush-last-run.log"
 
 
-async def run_agent(repo: Path, base: str) -> str:
+async def run_agent(repo: Path, base: str) -> tuple[str, set[str]]:
+    """Run the agent; return its summary and the set of files it wrote or edited."""
     log: list[str] = []
+    written: set[str] = set()
     env = {
         **os.environ,
         "CLEANPUSH_REPO": str(repo),
@@ -112,6 +114,8 @@ async def run_agent(repo: Path, base: str) -> str:
                     steps += 1
                     say(f"  {steps:>2}  {_style('1', f'{block.name:<16}')} {describe_call(block.name, block.input)}")
                     log.append(f"-> {block.name} {block.input}")
+                    if block.name in ("write_file", "replace_in_file"):
+                        written.add(os.path.normpath(block.input["path"]))
 
     if last is None:
         raise RuntimeError("agent produced no response")
@@ -120,7 +124,17 @@ async def run_agent(repo: Path, base: str) -> str:
     summary = "\n".join(b.text for b in last.content if b.type == "text").strip()
     log.append(f"\nSUMMARY\n{summary}")
     log_path(repo).write_text("\n".join(log) + "\n")
-    return summary
+    return summary, written
+
+
+def stage_changes(repo: Path, written: set[str]) -> list[str]:
+    """Stage edits to tracked files plus files the agent created. Returns untracked files left alone."""
+    git("add", "-u", cwd=repo)
+    for rel in sorted(written):
+        if (repo / rel).exists():
+            git("add", "--", rel, cwd=repo)
+    status = git("status", "--porcelain", cwd=repo).splitlines()
+    return [line[3:] for line in status if line.startswith("??")]
 
 
 def say(message: str = "") -> None:
@@ -167,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
 
     say(_style("1", "cleanpush") + f"  {repo.name}  base={args.base}  model={MODEL}")
     started = time.monotonic()
-    summary = asyncio.run(run_agent(repo, args.base))
+    summary, written = asyncio.run(run_agent(repo, args.base))
     say()
     say(_style("1", "Summary"))
     say("-" * 60)
@@ -192,9 +206,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.commit:
-        git("add", "-A", cwd=repo)
+        leftovers = stage_changes(repo, written)
         git("commit", "-m", "chore(cleanpush): format code and update docs", "-m", summary, cwd=repo)
         print("[cleanpush] committed cleanup.", file=sys.stderr)
+        if leftovers:
+            print(f"[cleanpush] left unstaged (not created by the agent): {', '.join(leftovers)}", file=sys.stderr)
     return 1 if args.check else 0
 
 
