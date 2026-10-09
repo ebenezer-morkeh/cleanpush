@@ -131,6 +131,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="exit 1 if the agent changed anything (CI gate)")
     args = parser.parse_args(argv)
 
+    has_login = (Path.home() / ".config" / "anthropic").exists()
+    if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or has_login):
+        print("[cleanpush] No Anthropic credentials found in this shell.", file=sys.stderr)
+        print("[cleanpush] Run: export ANTHROPIC_API_KEY=your-key   (then run cleanpush again)", file=sys.stderr)
+        return 2
+
     repo = Path(git("rev-parse", "--show-toplevel", cwd=Path(args.repo)).strip())
     if git("status", "--porcelain", cwd=repo).strip():
         print("[cleanpush] working tree has uncommitted changes; commit or stash them first.", file=sys.stderr)
