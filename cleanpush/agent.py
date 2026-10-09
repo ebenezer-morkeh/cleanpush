@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from anthropic import AsyncAnthropic
@@ -80,7 +82,8 @@ async def run_agent(repo: Path, base: str) -> str:
     async with stdio_client(server) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
         tools = (await session.list_tools()).tools
-        print(f"[cleanpush] connected to repo-tools MCP server ({len(tools)} tools)", file=sys.stderr)
+        say(_style("2", f"connected to repo-tools MCP server ({len(tools)} tools)"))
+        say()
 
         runner = client.beta.messages.tool_runner(
             model=MODEL,
@@ -101,11 +104,13 @@ async def run_agent(repo: Path, base: str) -> str:
         )
 
         last = None
+        steps = 0
         async for message in runner:
             last = message
             for block in message.content:
                 if block.type == "tool_use":
-                    print(f"[cleanpush] -> {block.name}({_short(block.input)})", file=sys.stderr)
+                    steps += 1
+                    say(f"  {steps:>2}  {_style('1', f'{block.name:<16}')} {describe_call(block.name, block.input)}")
                     log.append(f"-> {block.name} {block.input}")
 
     if last is None:
@@ -118,12 +123,30 @@ async def run_agent(repo: Path, base: str) -> str:
     return summary
 
 
-def _short(value: object, limit: int = 80) -> str:
-    text = str(value)
-    return text if len(text) <= limit else text[:limit] + "..."
+def say(message: str = "") -> None:
+    print(message, file=sys.stderr)
+
+
+def _style(code: str, text: str) -> str:
+    """Add terminal colour only when we are writing to a real terminal."""
+    return f"\033[{code}m{text}\033[0m" if sys.stderr.isatty() else text
+
+
+def describe_call(name: str, args: dict) -> str:
+    """A short human-readable summary of a tool call (never the full file contents)."""
+    if name == "write_file":
+        return f"{args.get('path', '')} ({len(args.get('content', ''))} chars)"
+    if "paths" in args:
+        return ", ".join(args["paths"])
+    if name == "search":
+        return str(args.get("pattern", ""))
+    return str(args.get("path", ""))
 
 
 def main(argv: list[str] | None = None) -> int:
+    for noisy in ("httpx", "httpx2", "httpcore", "anthropic"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
     parser = argparse.ArgumentParser(prog="cleanpush", description=__doc__.splitlines()[0])
     parser.add_argument("--repo", default=".", help="repository to clean (default: current directory)")
     parser.add_argument("--base", default="origin/main", help="branch the code is merging into")
@@ -142,9 +165,15 @@ def main(argv: list[str] | None = None) -> int:
         print("[cleanpush] working tree has uncommitted changes; commit or stash them first.", file=sys.stderr)
         return 2
 
+    say(_style("1", "cleanpush") + f"  {repo.name}  base={args.base}  model={MODEL}")
+    started = time.monotonic()
     summary = asyncio.run(run_agent(repo, args.base))
+    say()
+    say(_style("1", "Summary"))
+    say("-" * 60)
     print(summary)
-    print(f"[cleanpush] full tool log: {log_path(repo)}", file=sys.stderr)
+    say("-" * 60)
+    say(_style("2", f"done in {time.monotonic() - started:.0f}s  |  tool log: {log_path(repo)}"))
 
     if not git("status", "--porcelain", cwd=repo).strip():
         print("[cleanpush] already clean, nothing to commit.", file=sys.stderr)
