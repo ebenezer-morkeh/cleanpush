@@ -54,7 +54,13 @@ def git(*args: str, cwd: Path) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
 
 
+def log_path(repo: Path) -> Path:
+    # inside .git so it never shows up as an uncommitted change
+    return Path(git("rev-parse", "--absolute-git-dir", cwd=repo).strip()) / "cleanpush-last-run.log"
+
+
 async def run_agent(repo: Path, base: str) -> str:
+    log: list[str] = []
     env = {
         **os.environ,
         "CLEANPUSH_REPO": str(repo),
@@ -93,12 +99,16 @@ async def run_agent(repo: Path, base: str) -> str:
             for block in message.content:
                 if block.type == "tool_use":
                     print(f"[cleanpush] -> {block.name}({_short(block.input)})", file=sys.stderr)
+                    log.append(f"-> {block.name} {block.input}")
 
     if last is None:
         raise RuntimeError("agent produced no response")
     if last.stop_reason == "refusal":
         raise RuntimeError(f"model declined the request: {last.stop_details}")
-    return "\n".join(b.text for b in last.content if b.type == "text").strip()
+    summary = "\n".join(b.text for b in last.content if b.type == "text").strip()
+    log.append(f"\nSUMMARY\n{summary}")
+    log_path(repo).write_text("\n".join(log) + "\n")
+    return summary
 
 
 def _short(value: object, limit: int = 80) -> str:
@@ -121,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary = asyncio.run(run_agent(repo, args.base))
     print(summary)
+    print(f"[cleanpush] full tool log: {log_path(repo)}", file=sys.stderr)
 
     if not git("status", "--porcelain", cwd=repo).strip():
         print("[cleanpush] already clean, nothing to commit.", file=sys.stderr)
@@ -129,6 +140,9 @@ def main(argv: list[str] | None = None) -> int:
     # Safety net that doesn't depend on the model: cleanup must never break the build.
     os.environ["CLEANPUSH_REPO"] = str(repo)
     cmd = repo_tools.test_command()
+    if cmd is None:
+        print("[cleanpush] WARNING: no test command found, so nothing verified the cleanup.", file=sys.stderr)
+        print("[cleanpush] Set CLEANPUSH_TEST_CMD to enable the safety net.", file=sys.stderr)
     if cmd and subprocess.run(cmd, cwd=repo, check=False).returncode != 0:
         print("[cleanpush] tests fail after cleanup; reverting the agent's changes.", file=sys.stderr)
         git("checkout", "--", ".", cwd=repo)

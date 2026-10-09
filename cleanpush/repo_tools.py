@@ -13,6 +13,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
@@ -174,17 +175,32 @@ def run_linters(paths: list[str]) -> str:
 @mcp.tool()
 def run_tests() -> str:
     """Run the project's test suite (CLEANPUSH_TEST_CMD, else pytest / npm test if detected)."""
-    return _run(test_command() or ["true"], timeout=900)
+    cmd = test_command()
+    if cmd is None:
+        return "no test command detected (set CLEANPUSH_TEST_CMD); tests were NOT run"
+    return _run(cmd, timeout=900)
+
+
+def _python() -> str:
+    """The repo's own virtualenv if it has one, else whatever python3/python is on PATH."""
+    venv = repo_root() / ".venv" / "bin" / "python"
+    if venv.exists():
+        return str(venv)
+    return shutil.which("python3") or shutil.which("python") or sys.executable
 
 
 def test_command() -> list[str] | None:
+    """Work out how to run this repo's tests, or None if we can't tell."""
     if cmd := os.environ.get("CLEANPUSH_TEST_CMD"):
         return shlex.split(cmd)
     root = repo_root()
     if (root / "package.json").exists() and '"test"' in (root / "package.json").read_text():
         return ["npm", "test", "--silent"]
-    if any((root / f).exists() for f in ("pytest.ini", "pyproject.toml", "setup.cfg")) and (root / "tests").is_dir():
-        return ["python", "-m", "pytest", "-q"]
+    if (root / "go.mod").exists():
+        return ["go", "test", "./..."]
+    has_py_tests = (root / "tests").is_dir() or any(root.glob("test_*.py")) or any(root.glob("*_test.py"))
+    if has_py_tests:
+        return [_python(), "-m", "pytest", "-q"]
     return None
 
 
