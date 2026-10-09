@@ -1,0 +1,21 @@
+#!/bin/sh
+# cleanpush pre-push hook: before anything is pushed to main, let the agent clean it.
+# Install:  ln -s ../../hooks/pre-push .git/hooks/pre-push   (or: git config core.hooksPath hooks)
+# Skip once: CLEANPUSH_SKIP=1 git push
+[ -n "$CLEANPUSH_SKIP" ] && exit 0
+
+pushing_main=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$remote_ref" = "refs/heads/main" ] && pushing_main=1
+done
+[ "$pushing_main" = 1 ] || exit 0
+
+before=$(git rev-parse HEAD)
+cleanpush --base "origin/main" --commit || exit 1
+if [ "$(git rev-parse HEAD)" != "$before" ]; then
+  echo ""
+  echo "cleanpush added a cleanup commit (see: git show HEAD)."
+  echo "Review it, then run git push again."
+  exit 1
+fi
+exit 0

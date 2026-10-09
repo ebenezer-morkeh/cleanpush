@@ -1,0 +1,84 @@
+# cleanpush
+
+An AI agent that runs before code lands on `main`. It **formats and tidies the code** and
+**updates the documentation**, so `main` always has clean code and up-to-date docs.
+
+Built with **Claude tool calling** and an **MCP server**.
+
+```
+git push / PR to main
+        │
+        ▼
+ ┌──────────────┐  MCP (stdio)  ┌───────────────────────────────┐
+ │ cleanpush    │ ────────────▶ │ repo-tools MCP server         │
+ │ agent        │               │  changed_files  diff          │
+ │ (Claude +    │ ◀──────────── │  read_file  write_file        │
+ │ tool runner) │  tool results │  replace_in_file  search      │
+ └──────┬───────┘               │  run_formatters  run_linters  │
+        │                       │  list_docs  run_tests         │
+        ▼                       └───────────────────────────────┘
+ tests still pass? ── no ──▶ revert everything, block the push
+        │ yes
+        ▼
+ commit "chore(cleanpush): format code and update docs"
+```
+
+## What the agent does
+
+1. Reads the branch diff against `origin/main`.
+2. Runs the formatters (ruff for Python, prettier for JS/TS/MD/JSON/YAML, gofmt for Go), then the linters, and fixes whatever lint problems remain.
+3. Makes small, safe cleanups in the changed files: removes leftover debug prints, commented-out code and unused imports, and adds docstrings to new public functions. It never changes behavior.
+4. Updates the docs to match the diff: README usage, `docs/`, CLI flags, environment variables, and a `CHANGELOG` entry under "Unreleased".
+5. Runs the tests. **This check is done in plain code, not by the model:** if the tests fail after cleanup, every change is reverted.
+
+## Install
+
+```bash
+pip install -e .
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## Use it
+
+```bash
+cleanpush                      # clean the current branch against origin/main
+cleanpush --commit             # ...and commit the result
+cleanpush --check              # CI gate: exit 1 if anything needed cleaning
+cleanpush --base origin/develop
+```
+
+The working tree must be clean before you run it, so the agent's changes never mix with yours.
+
+| Env var | Meaning |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude API key |
+| `CLEANPUSH_MODEL` | model to use (default `claude-opus-5-5`) |
+| `CLEANPUSH_TEST_CMD` | test command (default: auto-detects `pytest` or `npm test`) |
+| `CLEANPUSH_SKIP=1` | skip the pre-push hook once |
+
+## Enforce it on main
+
+**Locally (pre-push hook).** When you push to `main`, the agent runs first. If it makes a cleanup commit, the push stops so you can review the commit and push again.
+
+```bash
+git config core.hooksPath /path/to/cleanpush/hooks
+```
+
+**In CI (recommended).** [.github/workflows/cleanpush.yml](.github/workflows/cleanpush.yml) runs on every PR into `main` and pushes the cleanup commit back to the PR branch. Add `ANTHROPIC_API_KEY` as a repo secret, then turn on branch protection for `main` (require pull requests). After that, nothing reaches `main` without passing through cleanpush.
+
+## Use the MCP server on its own
+
+`repo-tools` is a standard MCP server, so other clients can use it too, e.g. Claude Code:
+
+```bash
+claude mcp add repo-tools -e CLEANPUSH_REPO=$PWD -- cleanpush-mcp
+```
+
+Every path is confined to the repo root, and `.git/` can't be written.
+
+## Develop
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
