@@ -84,6 +84,11 @@ The workflow uses it automatically when it exists and falls back to the built-in
 doesn't. It also stops itself on its own commit (it checks the newest commit's title), so it
 never loops.
 
+### Versions
+
+The workflow installs a pinned release (`...cleanpush@v0.1.0`), so updates to cleanpush never reach
+your repo by surprise. To upgrade, change the tag in `.github/workflows/cleanpush.yml` to a newer one.
+
 ## Use the MCP server on its own
 
 `repo-tools` is a standard MCP server, so other clients can use it too, e.g. Claude Code:

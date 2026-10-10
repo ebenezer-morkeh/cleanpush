@@ -6,6 +6,8 @@
 # GitHub runs your required checks on the cleanup commit right away. Without the secret the
 # workflow falls back to the built-in token; the push still works, but GitHub holds your
 # required checks on that commit until someone approves them.
+# VERSION: the install step is pinned to a release tag, so changes to cleanpush never reach this
+# repo until you bump the tag below on purpose.
 name: cleanpush
 on:
   pull_request:
@@ -40,7 +42,7 @@ jobs:
           python-version: "3.12"
       - name: Install cleanpush
         if: steps.guard.outputs.skip != 'true'
-        run: pip install "cleanpush @ git+https://github.com/${{ github.repository_owner }}/cleanpush"
+        run: pip install "cleanpush @ git+https://github.com/${{ github.repository_owner }}/cleanpush@v0.1.0"
       - name: Run cleanpush
         if: steps.guard.outputs.skip != 'true'
         env:
