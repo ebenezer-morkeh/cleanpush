@@ -5,19 +5,20 @@ name: cleanpush
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch: # adds a "Run workflow" button on the Actions tab; pick the branch to clean
 
 permissions:
   contents: write
 
 jobs:
   cleanpush:
-    # the bot's own commit retriggers the workflow; skip that run
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    # manual runs always go; PR runs skip forks (no secrets) and the bot's own commit
+    if: "github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
