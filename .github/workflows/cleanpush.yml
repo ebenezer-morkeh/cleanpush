@@ -49,7 +49,7 @@ jobs:
         run: npm ci
       - name: Install cleanpush
         if: steps.guard.outputs.skip != 'true'
-        run: pip install "cleanpush @ git+https://github.com/${{ github.repository_owner }}/cleanpush@v0.1.0"
+        run: pip install "cleanpush @ git+https://github.com/${{ github.repository_owner }}/cleanpush@v0.2.0"
       - name: Run cleanpush
         if: steps.guard.outputs.skip != 'true'
         env:
