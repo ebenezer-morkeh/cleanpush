@@ -70,6 +70,20 @@ git config core.hooksPath /path/to/cleanpush/hooks
 
 **In CI (recommended, runs on pull requests).** [.github/workflows/cleanpush.yml](.github/workflows/cleanpush.yml) runs on every PR into `main` and pushes the cleanup commit back to the PR branch. Add `ANTHROPIC_API_KEY` as a repo secret, then turn on branch protection for `main` (require pull requests). After that, nothing reaches `main` without passing through cleanpush.
 
+### If your repo has required checks (recommended token setup)
+
+Pushes made with GitHub's built-in token do not start other workflows normally, so your required
+checks can sit "waiting for approval" on the cleanup commit and block the merge. To avoid that,
+let the workflow push with your own token:
+
+1. Create a **fine-grained personal access token** (GitHub → Settings → Developer settings →
+   Personal access tokens). Limit it to the one repository, with **Contents: Read and write**.
+2. Add it as a repository secret named `CLEANPUSH_TOKEN`.
+
+The workflow uses it automatically when it exists and falls back to the built-in token when it
+doesn't. It also stops itself on its own commit (it checks the newest commit's title), so it
+never loops.
+
 ## Use the MCP server on its own
 
 `repo-tools` is a standard MCP server, so other clients can use it too, e.g. Claude Code:

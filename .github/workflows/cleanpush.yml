@@ -1,6 +1,11 @@
 # Runs cleanpush on every pull request into main and pushes the cleanup commit
 # back to the PR branch, so whatever merges into main is already clean.
-# Pair it with branch protection on main (require PRs + this check).
+#
+# TOKEN: the push uses the CLEANPUSH_TOKEN secret (a fine-grained personal access token with
+# "Contents: Read and write" on this repo). A push made with it counts as a normal push, so
+# GitHub runs your required checks on the cleanup commit right away. Without the secret the
+# workflow falls back to the built-in token; the push still works, but GitHub holds your
+# required checks on that commit until someone approves them.
 name: cleanpush
 on:
   pull_request:
@@ -12,24 +17,38 @@ permissions:
 
 jobs:
   cleanpush:
-    # manual runs always go; PR runs skip forks (no secrets) and the bot's own commit
-    if: "github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]')"
+    # manual runs always go; PR runs skip forks (they get no secrets)
+    if: "github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
+          token: ${{ secrets.CLEANPUSH_TOKEN || github.token }}
+      # A push with the token above triggers this workflow again. Stop there, so we never loop.
+      - name: Skip if the newest commit is cleanpush's own
+        id: guard
+        run: |
+          if [ "$(git log -1 --format=%s)" = "chore(cleanpush): format code and update docs" ]; then
+            echo "Newest commit is cleanpush's own; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-python@v5
+        if: steps.guard.outputs.skip != 'true'
         with:
           python-version: "3.12"
-      - run: pip install "cleanpush @ git+https://github.com/${{ github.repository_owner }}/cleanpush"
-        # or: pip install cleanpush  (once published)
+      - name: Install cleanpush
+        if: steps.guard.outputs.skip != 'true'
+        run: pip install "cleanpush @ git+https://github.com/${{ github.repository_owner }}/cleanpush"
       - name: Run cleanpush
+        if: steps.guard.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cleanpush --base origin/main --commit
-      - run: git push
+      - name: Push cleanup commit
+        if: steps.guard.outputs.skip != 'true'
+        run: git push
