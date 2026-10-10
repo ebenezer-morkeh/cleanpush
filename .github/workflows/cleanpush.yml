@@ -31,5 +31,5 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cleanpush --base origin/main --commit --skip-ci
+          cleanpush --base origin/main --commit
       - run: git push
