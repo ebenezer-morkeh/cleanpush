@@ -40,6 +40,13 @@ jobs:
         if: steps.guard.outputs.skip != 'true'
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip != 'true' && hashFiles('package.json') != ''
+        with:
+          node-version: "20"
+      - name: Install Node dependencies
+        if: steps.guard.outputs.skip != 'true' && hashFiles('package-lock.json') != ''
+        run: npm ci
       - name: Install cleanpush
         if: steps.guard.outputs.skip != 'true'
         run: pip install "cleanpush @ git+https://github.com/${{ github.repository_owner }}/cleanpush@v0.1.0"

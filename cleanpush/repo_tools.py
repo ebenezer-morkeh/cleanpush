@@ -23,6 +23,7 @@ MAX_OUTPUT = 40_000  # chars returned per tool call; larger outputs say they wer
 PY_EXT = {".py", ".pyi"}
 PRETTIER_EXT = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".json", ".css", ".scss", ".html", ".md", ".yml", ".yaml"}
 GO_EXT = {".go"}
+JS_EXT = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
 DOC_GLOBS = ["README*", "CHANGELOG*", "CONTRIBUTING*", "ARCHITECTURE*", "docs/**/*.md", "docs/**/*.mdx", "*.md"]
 
 
@@ -149,7 +150,12 @@ def run_formatters(paths: list[str]) -> str:
         # fix first: removing unused imports can leave blank lines that format then tidies
         reports.append(_run(["ruff", "check", "--fix", *py]))
         reports.append(_run(["ruff", "format", *py]))
-    if web and (repo_root() / "node_modules" / ".bin" / "prettier").exists():
+    bin_dir = repo_root() / "node_modules" / ".bin"
+    js = [f for f in files if Path(f).suffix in JS_EXT]
+    if js and (bin_dir / "eslint").exists():
+        # auto-fix what ESLint can fix; remaining problems are reported by run_linters
+        reports.append(_run(["npx", "--no-install", "eslint", "--fix", *js]))
+    if web and (bin_dir / "prettier").exists():
         reports.append(_run(["npx", "--no-install", "prettier", "--write", *web]))
     elif web:
         reports.append("prettier is not installed in this repo; skipped " + ", ".join(web))
@@ -163,7 +169,7 @@ def run_linters(paths: list[str]) -> str:
     """Report remaining lint problems (no changes made) for the given files."""
     files = [str(_safe_path(p).relative_to(repo_root())) for p in paths]
     py = [f for f in files if Path(f).suffix in PY_EXT]
-    js = [f for f in files if Path(f).suffix in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}]
+    js = [f for f in files if Path(f).suffix in JS_EXT]
     reports = []
     if py:
         reports.append(_run(["ruff", "check", *py]))

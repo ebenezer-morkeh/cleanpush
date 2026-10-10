@@ -1,6 +1,6 @@
 [project]
 name = "cleanpush"
-version = "0.1.0"
+version = "0.2.0"
 description = "AI agent that cleans code and updates docs before it lands on main"
 requires-python = ">=3.10"
 dependencies = ["anthropic[mcp]>=1.12", "mcp>=2.3", "ruff>=0.6"]
