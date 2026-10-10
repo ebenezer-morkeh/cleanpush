@@ -165,6 +165,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", default=".", help="repository to clean (default: current directory)")
     parser.add_argument("--base", default="origin/main", help="branch the code is merging into")
     parser.add_argument("--commit", action="store_true", help="commit the agent's changes")
+    parser.add_argument(
+        "--skip-ci",
+        action="store_true",
+        help="add [skip ci] to the commit message so GitHub doesn't start more workflow runs for it",
+    )
     parser.add_argument("--check", action="store_true", help="exit 1 if the agent changed anything (CI gate)")
     args = parser.parse_args(argv)
 
@@ -207,7 +212,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.commit:
         leftovers = stage_changes(repo, written)
-        git("commit", "-m", "chore(cleanpush): format code and update docs", "-m", summary, cwd=repo)
+        title = "chore(cleanpush): format code and update docs" + (" [skip ci]" if args.skip_ci else "")
+        git("commit", "-m", title, "-m", summary, cwd=repo)
         print("[cleanpush] committed cleanup.", file=sys.stderr)
         if leftovers:
             print(f"[cleanpush] left unstaged (not created by the agent): {', '.join(leftovers)}", file=sys.stderr)

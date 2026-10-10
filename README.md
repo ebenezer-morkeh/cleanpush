@@ -44,6 +44,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 cleanpush                      # clean the current branch against origin/main
 cleanpush --commit             # ...and commit the result
 cleanpush --check              # CI gate: exit 1 if anything needed cleaning
+cleanpush --commit --skip-ci   # add [skip ci] so GitHub doesn't re-run workflows on the bot commit
 cleanpush --base origin/develop
 ```
 
